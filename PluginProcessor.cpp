@@ -141,16 +141,8 @@ void PeterClip2AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
          //but one channel at a time... perhaps not necessary for a clipper
          for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
          {
-             if((*mainInputOutput.getWritePointer (i, j)) > threshold) //positive waveform
-             {
-                 *mainInputOutput.getWritePointer(i, j) = threshold;
-             }
-             else if((-1.0f * *mainInputOutput.getWritePointer (i, j)) < (-threshold)) //negative waveform
-             {
-                 *mainInputOutput.getWritePointer(i, j) = -threshold;
-             }
-             
              *mainInputOutput.getWritePointer(i, j) *= gain;
+             *mainInputOutput.getWritePointer(i, j) = 0.5 * (std::fabs(*mainInputOutput.getWritePointer(i, j) + clip) - std::fabs(*mainInputOutput.getWritePointer(i, j) - threshold));
              
          }
      }

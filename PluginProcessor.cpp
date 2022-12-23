@@ -142,7 +142,7 @@ void PeterClip2AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
          for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
          {
              *mainInputOutput.getWritePointer(i, j) *= gain;
-             *mainInputOutput.getWritePointer(i, j) = 0.5 * (std::fabs(*mainInputOutput.getWritePointer(i, j) + clip) - std::fabs(*mainInputOutput.getWritePointer(i, j) - threshold));
+             *mainInputOutput.getWritePointer(i, j) = 0.5 * (std::fabs(*mainInputOutput.getWritePointer(i, j) + threshold) - std::fabs(*mainInputOutput.getWritePointer(i, j) - threshold));
              
          }
      }

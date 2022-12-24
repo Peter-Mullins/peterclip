@@ -23,8 +23,6 @@ public:
     PeterClip2AudioProcessor();
     ~PeterClip2AudioProcessor() override;
     
-    float threshold;
-    float gain;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -58,8 +56,13 @@ public:
     //==============================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
-
+    //I'm not sure I did this correctly
+    juce::AudioProcessorValueTreeState params;
 private:
+    //this function creates the parameter objects
+    juce::AudioProcessorValueTreeState::ParameterLayout createparameters();
+    
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PeterClip2AudioProcessor)
 };

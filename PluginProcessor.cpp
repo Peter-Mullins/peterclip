@@ -19,10 +19,9 @@ PeterClip2AudioProcessor::PeterClip2AudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ), params(*this, nullptr, "parameters", createparameters()) // parameter constructor
 #endif
 {
-    
 }
 
 PeterClip2AudioProcessor::~PeterClip2AudioProcessor()
@@ -132,7 +131,9 @@ bool PeterClip2AudioProcessor::isBusesLayoutSupported (const BusesLayout& layout
 
 void PeterClip2AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-     auto mainInputOutput = getBusBuffer (buffer, true, 0);
+    auto mainInputOutput = getBusBuffer (buffer, true, 0);
+    auto* gaincopy = params.getRawParameterValue("gain");
+    auto* thresholdcopy = params.getRawParameterValue("threshold");
 
     //iterates through all samples in buffer
      for (auto j = 0; j < buffer.getNumSamples(); ++j)
@@ -141,8 +142,8 @@ void PeterClip2AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
          //but one channel at a time... perhaps not necessary for a clipper
          for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
          {
-             *mainInputOutput.getWritePointer(i, j) *= gain;
-             *mainInputOutput.getWritePointer(i, j) = 0.5 * (std::fabs(*mainInputOutput.getWritePointer(i, j) + threshold) - std::fabs(*mainInputOutput.getWritePointer(i, j) - threshold));
+             *mainInputOutput.getWritePointer(i, j) *= *gaincopy;
+             *mainInputOutput.getWritePointer(i, j) = 0.5 * (std::fabs(*mainInputOutput.getWritePointer(i, j) + *thresholdcopy) - std::fabs(*mainInputOutput.getWritePointer(i, j) - *thresholdcopy));
              
          }
      }
@@ -156,7 +157,7 @@ bool PeterClip2AudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* PeterClip2AudioProcessor::createEditor()
 {
-    return new PeterClip2AudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor (*this);
 }
 
 //==============================================================================
@@ -178,4 +179,14 @@ void PeterClip2AudioProcessor::setStateInformation (const void* data, int sizeIn
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new PeterClip2AudioProcessor();
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout PeterClip2AudioProcessor::createparameters()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    //these need the super annoying parameterID for audio unit (AU) compatibility
+    params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"gain", 1}, "Gain", 0.0f, 1.0f, 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"threshold", 1}, "Threshold", 0.0f, 1.0f, 1.0f));
+    
+    return { params.begin(), params.end()};
 }

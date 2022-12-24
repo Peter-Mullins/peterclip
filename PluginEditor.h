@@ -27,13 +27,13 @@ public:
 
 private:
     
-    void sliderValueChanged (juce::Slider* slider) override;
+    //void sliderValueChanged (juce::Slider* slider) override;
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     PeterClip2AudioProcessor& audioProcessor;
     
-    juce::Slider clipThreshSlider;
-    juce::Slider outputGainSlider;
+   // juce::Slider clipThreshSlider;
+    //juce::Slider outputGainSlider;
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PeterClip2AudioProcessorEditor)

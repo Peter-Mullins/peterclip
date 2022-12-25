@@ -132,21 +132,37 @@ bool PeterClip2AudioProcessor::isBusesLayoutSupported (const BusesLayout& layout
 void PeterClip2AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     auto mainInputOutput = getBusBuffer (buffer, true, 0);
-    auto* gaincopy = params.getRawParameterValue("gain");
-    auto* thresholdcopy = params.getRawParameterValue("threshold");
-
-    //iterates through all samples in buffer
-     for (auto j = 0; j < buffer.getNumSamples(); ++j)
-     {
-
-         //but one channel at a time... perhaps not necessary for a clipper
-         for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
-         {
-             *mainInputOutput.getWritePointer(i, j) *= *gaincopy;
-             *mainInputOutput.getWritePointer(i, j) = 0.5 * (std::fabs(*mainInputOutput.getWritePointer(i, j) + *thresholdcopy) - std::fabs(*mainInputOutput.getWritePointer(i, j) - *thresholdcopy));
-             
-         }
-     }
+    auto gaincopy = params.getRawParameterValue("gain")->load();
+    auto thresholdcopy = params.getRawParameterValue("threshold")->load();
+    auto modeCopy = params.getParameter("mode")->getCurrentValueAsText();
+    
+    if (modeCopy == "Hard")
+    {
+        //hard clipping
+        for (auto j = 0; j < buffer.getNumSamples(); ++j)
+        {
+            for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
+            {
+                *mainInputOutput.getWritePointer(i, j) *= gaincopy;
+                *mainInputOutput.getWritePointer(i, j) = 0.5 * (std::fabs(*mainInputOutput.getWritePointer(i, j) + thresholdcopy) - std::fabs(*mainInputOutput.getWritePointer(i, j) - thresholdcopy));
+                
+            }
+        }
+    }
+    if (modeCopy == "Soft")
+    {
+        //soft clipping
+        for (auto j = 0; j < buffer.getNumSamples(); ++j)
+        {
+            for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
+            {
+                *mainInputOutput.getWritePointer(i, j) *= gaincopy;
+                *mainInputOutput.getWritePointer(i, j) = 1.5f * *mainInputOutput.getWritePointer(i, j) - 0.5f * pow(*mainInputOutput.getWritePointer(i, j), 3.0f);
+                    
+            }
+        }
+    }
+     
 }
 
 //==============================================================================
@@ -181,12 +197,18 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
     return new PeterClip2AudioProcessor();
 }
 
+
+
+
 juce::AudioProcessorValueTreeState::ParameterLayout PeterClip2AudioProcessor::createparameters()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
     //these need the super annoying parameterID for audio unit (AU) compatibility
-    params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"gain", 1}, "Gain", 0.0f, 1.0f, 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"gain", 1}, "Gain", 1.0f, 3.0f, 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"threshold", 1}, "Threshold", 0.0f, 1.0f, 1.0f));
+    
+    //choice of distortion mode
+    params.push_back(std::make_unique<juce::AudioParameterChoice> (juce::ParameterID{"mode", 1}, "Mode", juce::StringArray { "Hard", "Soft" }, 0));
     
     return { params.begin(), params.end()};
 }

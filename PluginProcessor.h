@@ -56,11 +56,17 @@ public:
     //==============================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
-    //I'm not sure I did this correctly
+    //in case I need to pass "params" to the editor in a future version
     juce::AudioProcessorValueTreeState params;
 private:
     //this function creates the parameter objects
     juce::AudioProcessorValueTreeState::ParameterLayout createparameters();
+    
+    //these are the different distortion algorithms
+    float hardClip(float);
+    float softClip(float);
+    //cant wait to add a bunch more
+    
     
 
     //==============================================================================

@@ -95,6 +95,7 @@ void PeterClip2AudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+    
 }
 
 void PeterClip2AudioProcessor::releaseResources()
@@ -131,37 +132,43 @@ bool PeterClip2AudioProcessor::isBusesLayoutSupported (const BusesLayout& layout
 
 void PeterClip2AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    currentMode = params.getParameter("mode")->getCurrentValueAsText();
+        
+    if (currentMode.equalsIgnoreCase("Hard"))
+    {
+        algo = &PeterClip2AudioProcessor::algoHard;
+    }
+    if (currentMode.equalsIgnoreCase("Soft"))
+    {
+        algo = &PeterClip2AudioProcessor::algoSoft;
+    }
+    
     auto mainInputOutput = getBusBuffer (buffer, true, 0);
     auto gaincopy = params.getRawParameterValue("gain")->load();
     auto thresholdcopy = params.getRawParameterValue("threshold")->load();
-    auto modeCopy = params.getParameter("mode")->getCurrentValueAsText();
     
-    if (modeCopy == "Hard")
+    for (auto j = 0; j < buffer.getNumSamples(); ++j)
     {
-        //hard clipping
-        for (auto j = 0; j < buffer.getNumSamples(); ++j)
+        for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
         {
-            for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
-            {
-                *mainInputOutput.getWritePointer(i, j) *= gaincopy;
-                *mainInputOutput.getWritePointer(i, j) = 0.5 * (std::fabs(*mainInputOutput.getWritePointer(i, j) + thresholdcopy) - std::fabs(*mainInputOutput.getWritePointer(i, j) - thresholdcopy));
-                
-            }
+            //I never want to use function pointers again
+            *mainInputOutput.getWritePointer(i, j) = (this->*algo)(*mainInputOutput.getWritePointer(i, j), gaincopy, thresholdcopy);
         }
     }
-    if (modeCopy == "Soft")
-    {
-        //soft clipping
-        for (auto j = 0; j < buffer.getNumSamples(); ++j)
-        {
-            for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
-            {
-                *mainInputOutput.getWritePointer(i, j) *= gaincopy;
-                *mainInputOutput.getWritePointer(i, j) = 1.5f * *mainInputOutput.getWritePointer(i, j) - 0.5f * pow(*mainInputOutput.getWritePointer(i, j), 3.0f);
-                    
-            }
-        }
-    }
+
+//    if (modeCopy == "Soft")
+//    {
+//        //soft clipping
+//        for (auto j = 0; j < buffer.getNumSamples(); ++j)
+//        {
+//            for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
+//            {
+//                *mainInputOutput.getWritePointer(i, j) *= gaincopy;
+//                *mainInputOutput.getWritePointer(i, j) = 1.5f * *mainInputOutput.getWritePointer(i, j) - 0.5f * pow(*mainInputOutput.getWritePointer(i, j), 3.0f);
+//
+//            }
+//        }
+//    }
      
 }
 
@@ -204,7 +211,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PeterClip2AudioProcessor::cr
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
     //these need the super annoying parameterID for audio unit (AU) compatibility
-    params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"gain", 1}, "Gain", 1.0f, 3.0f, 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"gain", 1}, "Gain", 1.0f, 5.0f, 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"threshold", 1}, "Threshold", 0.0f, 1.0f, 1.0f));
     
     //choice of distortion mode
@@ -212,3 +219,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout PeterClip2AudioProcessor::cr
     
     return { params.begin(), params.end()};
 }
+
+float PeterClip2AudioProcessor::algoHard(float x, float gainCopy, float thresholdCopy)
+{
+    x *= gainCopy;
+    x = 0.5 * (std::fabs(x + thresholdCopy) - (std::fabs(x - thresholdCopy)));
+    
+    return x;
+    
+}
+
+float PeterClip2AudioProcessor::algoSoft(float x, float gainCopy, float thresholdCopy)
+{
+    x *= gainCopy;
+    x = 1.5f * x - 0.5f * pow(x, 3.0f);
+    
+    return x;
+}
+
+float PeterClip2AudioProcessor::*algo(float x, float gainCopy, float, float thresholdCopy);

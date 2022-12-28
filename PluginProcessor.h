@@ -58,16 +58,19 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
     //in case I need to pass "params" to the editor in a future version
     juce::AudioProcessorValueTreeState params;
+    
+    //function pointer to current distortion algorithm
+    float (PeterClip2AudioProcessor::*algo)(float, float, float);
+    
+    //distortion algorithms
+    float algoHard(float x, float gainCopy, float thresholdCopy);
+    float algoSoft(float x, float gainCopy, float thresholdCopy);
 private:
     //this function creates the parameter objects
     juce::AudioProcessorValueTreeState::ParameterLayout createparameters();
     
-    //these are the different distortion algorithms
-    float hardClip(float);
-    float softClip(float);
-    //cant wait to add a bunch more
-    
-    
+    //string to pick the algorithm, annoying way this AVTS functions
+    juce::String currentMode;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PeterClip2AudioProcessor)

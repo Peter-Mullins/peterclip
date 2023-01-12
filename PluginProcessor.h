@@ -1,27 +1,18 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
-
 #pragma once
 
 #include <JuceHeader.h>
 
 //==============================================================================
-/**
-*/
-class PeterClip2AudioProcessor  : public juce::AudioProcessor
+
+class PeterClip3AudioProcessor  : public juce::AudioProcessor
                             #if JucePlugin_Enable_ARA
                              , public juce::AudioProcessorARAExtension
                             #endif
 {
 public:
     //==============================================================================
-    PeterClip2AudioProcessor();
-    ~PeterClip2AudioProcessor() override;
+    PeterClip3AudioProcessor();
+    ~PeterClip3AudioProcessor() override;
     
 
     //==============================================================================
@@ -60,7 +51,7 @@ public:
     juce::AudioProcessorValueTreeState params;
     
     //function pointer to current distortion algorithm
-    float (PeterClip2AudioProcessor::*algo)(float, float, float);
+    float (PeterClip3AudioProcessor::*algo)(float, float, float);
     
     //distortion algorithms
     float algoHard(float x, float gainCopy, float thresholdCopy);
@@ -71,7 +62,10 @@ private:
     
     //string to pick the algorithm, annoying way this AVTS functions
     juce::String currentMode;
+    int osMode = 0;
+    
+    juce::dsp::Oversampling<float> oversampler;
 
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PeterClip2AudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PeterClip3AudioProcessor)
 };

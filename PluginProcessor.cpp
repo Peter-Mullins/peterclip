@@ -1,16 +1,8 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
-
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 //==============================================================================
-PeterClip2AudioProcessor::PeterClip2AudioProcessor()
+PeterClip3AudioProcessor::PeterClip3AudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -19,22 +11,24 @@ PeterClip2AudioProcessor::PeterClip2AudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       ), params(*this, nullptr, "parameters", createparameters()) // parameter constructor
+                       ), params(*this, nullptr, "parameters", createparameters()),
+oversampler(PeterClip3AudioProcessor::getTotalNumInputChannels(), osMode, juce::dsp::Oversampling<float>::FilterType::filterHalfBandFIREquiripple, true, true)
+
 #endif
 {
 }
 
-PeterClip2AudioProcessor::~PeterClip2AudioProcessor()
+PeterClip3AudioProcessor::~PeterClip3AudioProcessor()
 {
 }
 
 //==============================================================================
-const juce::String PeterClip2AudioProcessor::getName() const
+const juce::String PeterClip3AudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool PeterClip2AudioProcessor::acceptsMidi() const
+bool PeterClip3AudioProcessor::acceptsMidi() const
 {
    #if JucePlugin_WantsMidiInput
     return true;
@@ -43,7 +37,7 @@ bool PeterClip2AudioProcessor::acceptsMidi() const
    #endif
 }
 
-bool PeterClip2AudioProcessor::producesMidi() const
+bool PeterClip3AudioProcessor::producesMidi() const
 {
    #if JucePlugin_ProducesMidiOutput
     return true;
@@ -52,7 +46,7 @@ bool PeterClip2AudioProcessor::producesMidi() const
    #endif
 }
 
-bool PeterClip2AudioProcessor::isMidiEffect() const
+bool PeterClip3AudioProcessor::isMidiEffect() const
 {
    #if JucePlugin_IsMidiEffect
     return true;
@@ -61,51 +55,52 @@ bool PeterClip2AudioProcessor::isMidiEffect() const
    #endif
 }
 
-double PeterClip2AudioProcessor::getTailLengthSeconds() const
+double PeterClip3AudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int PeterClip2AudioProcessor::getNumPrograms()
+int PeterClip3AudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
                 // so this should be at least 1, even if you're not really implementing programs.
 }
 
-int PeterClip2AudioProcessor::getCurrentProgram()
+int PeterClip3AudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void PeterClip2AudioProcessor::setCurrentProgram (int index)
+void PeterClip3AudioProcessor::setCurrentProgram (int index)
 {
 }
 
-const juce::String PeterClip2AudioProcessor::getProgramName (int index)
+const juce::String PeterClip3AudioProcessor::getProgramName (int index)
 {
     return {};
 }
 
-void PeterClip2AudioProcessor::changeProgramName (int index, const juce::String& newName)
+void PeterClip3AudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
 }
 
 //==============================================================================
-void PeterClip2AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void PeterClip3AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
     
+    oversampler.initProcessing(samplesPerBlock);
 }
 
-void PeterClip2AudioProcessor::releaseResources()
+void PeterClip3AudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool PeterClip2AudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool PeterClip3AudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
   #if JucePlugin_IsMidiEffect
     juce::ignoreUnused (layouts);
@@ -130,68 +125,82 @@ bool PeterClip2AudioProcessor::isBusesLayoutSupported (const BusesLayout& layout
 }
 #endif
 
-void PeterClip2AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void PeterClip3AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    
+    
+    //selects algorithm
     currentMode = params.getParameter("mode")->getCurrentValueAsText();
-        
     if (currentMode.equalsIgnoreCase("Hard"))
     {
-        algo = &PeterClip2AudioProcessor::algoHard;
+        algo = &PeterClip3AudioProcessor::algoHard;
     }
     if (currentMode.equalsIgnoreCase("Soft"))
     {
-        algo = &PeterClip2AudioProcessor::algoSoft;
+        algo = &PeterClip3AudioProcessor::algoSoft;
     }
     
     auto mainInputOutput = getBusBuffer (buffer, true, 0);
     auto gaincopy = params.getRawParameterValue("gain")->load();
     auto thresholdcopy = params.getRawParameterValue("threshold")->load();
     
-    for (auto j = 0; j < buffer.getNumSamples(); ++j)
+    //I take it that to use the juce::dsp methods, this how buffers are handled...
+    juce::dsp::AudioBlock<float> block (buffer);
+    juce::dsp::AudioBlock<float> upSampleBlock (buffer);
+    
+    //oversampling
+    osMode = params.getParameter("os")->getValue();
+    if (osMode > 0)
     {
-        for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
+        upSampleBlock = oversampler.processSamplesUp(block);
+        for (auto j = 0; j < upSampleBlock.getNumSamples(); ++j)
         {
-            //I never want to use function pointers again
-            *mainInputOutput.getWritePointer(i, j) = (this->*algo)(*mainInputOutput.getWritePointer(i, j), gaincopy, thresholdcopy);
+            for (auto i = 0; i < upSampleBlock.getNumChannels(); ++i)
+            {
+                float* data = upSampleBlock.getChannelPointer(i);
+                //nasty looking member function pointer
+                data[j] = (this->*algo)(data[j], gaincopy, thresholdcopy);
+                
+            }
+        }
+        oversampler.processSamplesDown(block);
+    }
+    else
+    {
+        //non-oversampled...I am repeating myself here, and will need to refactor into function to make this "correct" with next version
+        for (auto j = 0; j < block.getNumSamples(); ++j)
+        {
+            for (auto i = 0; i < block.getNumChannels(); ++i)
+            {
+                float* data = block.getChannelPointer(i);
+                
+                data[j] = (this->*algo)(data[j], gaincopy, thresholdcopy);
+            }
         }
     }
-
-//    if (modeCopy == "Soft")
-//    {
-//        //soft clipping
-//        for (auto j = 0; j < buffer.getNumSamples(); ++j)
-//        {
-//            for (auto i = 0; i < mainInputOutput.getNumChannels(); ++i)
-//            {
-//                *mainInputOutput.getWritePointer(i, j) *= gaincopy;
-//                *mainInputOutput.getWritePointer(i, j) = 1.5f * *mainInputOutput.getWritePointer(i, j) - 0.5f * pow(*mainInputOutput.getWritePointer(i, j), 3.0f);
-//
-//            }
-//        }
-//    }
-     
+    
 }
 
 //==============================================================================
-bool PeterClip2AudioProcessor::hasEditor() const
+bool PeterClip3AudioProcessor::hasEditor() const
 {
     return true; // (change this to false if you choose to not supply an editor)
 }
 
-juce::AudioProcessorEditor* PeterClip2AudioProcessor::createEditor()
+juce::AudioProcessorEditor* PeterClip3AudioProcessor::createEditor()
 {
     return new juce::GenericAudioProcessorEditor (*this);
 }
 
 //==============================================================================
-void PeterClip2AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void PeterClip3AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
 }
 
-void PeterClip2AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void PeterClip3AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
@@ -201,26 +210,32 @@ void PeterClip2AudioProcessor::setStateInformation (const void* data, int sizeIn
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new PeterClip2AudioProcessor();
+    return new PeterClip3AudioProcessor();
 }
 
 
 
 
-juce::AudioProcessorValueTreeState::ParameterLayout PeterClip2AudioProcessor::createparameters()
+juce::AudioProcessorValueTreeState::ParameterLayout PeterClip3AudioProcessor::createparameters()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-    //these need the super annoying parameterID for audio unit (AU) compatibility
+    //these need the "parameterID" for audio unit (AU) compatibility
     params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"gain", 1}, "Gain", 1.0f, 5.0f, 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat> (juce::ParameterID{"threshold", 1}, "Threshold", 0.0f, 1.0f, 1.0f));
     
     //choice of distortion mode
     params.push_back(std::make_unique<juce::AudioParameterChoice> (juce::ParameterID{"mode", 1}, "Mode", juce::StringArray { "Hard", "Soft" }, 0));
     
+    //oversampling mode, an integer which will oversample at 2^n
+    params.push_back(std::make_unique<juce::AudioParameterInt> (juce::ParameterID{"os", 1}, "Oversampling", 0, 2, 0));
+    
     return { params.begin(), params.end()};
 }
 
-float PeterClip2AudioProcessor::algoHard(float x, float gainCopy, float thresholdCopy)
+//different algorithms, many from Will Pirkle's Audio Effects book
+
+//simple hardclip at 0dB
+float PeterClip3AudioProcessor::algoHard(float x, float gainCopy, float thresholdCopy)
 {
     x *= gainCopy;
     x = 0.5 * (std::fabs(x + thresholdCopy) - (std::fabs(x - thresholdCopy)));
@@ -229,7 +244,8 @@ float PeterClip2AudioProcessor::algoHard(float x, float gainCopy, float threshol
     
 }
 
-float PeterClip2AudioProcessor::algoSoft(float x, float gainCopy, float thresholdCopy)
+//cubic
+float PeterClip3AudioProcessor::algoSoft(float x, float gainCopy, float thresholdCopy)
 {
     x *= gainCopy;
     x = 1.5f * x - 0.5f * pow(x, 3.0f);
@@ -237,4 +253,4 @@ float PeterClip2AudioProcessor::algoSoft(float x, float gainCopy, float threshol
     return x;
 }
 
-float PeterClip2AudioProcessor::*algo(float x, float gainCopy, float, float thresholdCopy);
+float PeterClip3AudioProcessor::*algo(float x, float gainCopy, float, float thresholdCopy);

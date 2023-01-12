@@ -9,3 +9,6 @@ future updates to include:
 -wide variety of soft-clipping algorithms
 -gain-matching
 -pretty GUI
+
+
+needs the JUCE::DSP module to build

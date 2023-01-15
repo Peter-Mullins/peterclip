@@ -1,18 +1,20 @@
 # peterclip
 Clipper/waveshaper
 
--hard clip and soft clip mode
+-variety of clipping/digital distortion algorithms
 
--oversampling 1x, 2x, or 4x
+-oversampling 2x or 4x
 
 /////
 future updates to include:
 
--wide variety of soft-clipping and waveshaping algorithms
-
 -gain-matching
+
+-analog modeling algorithms
 
 -pretty GUI
 
 /////
-needs the JUCE::DSP module to build
+include the JUCE::DSP module to build
+
+here's the current algorithms in a graph: https://www.desmos.com/calculator/hpyp3y6wiu

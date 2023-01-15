@@ -55,7 +55,13 @@ public:
     
     //distortion algorithms
     float algoHard(float x, float gainCopy, float thresholdCopy);
-    float algoSoft(float x, float gainCopy, float thresholdCopy);
+    float algoCubic(float x, float gainCopy, float thresholdCopy);
+    float algoArcTan(float x, float gainCopy, float thresholdCopy);
+    float algoFuzzExp(float x, float gainCopy, float thresholdCopy);
+    float algoSigmoid(float x, float gainCopy, float thresholdCopy);
+    float algoArcTanSQRT(float x, float gainCopy, float thresholdCopy);
+    float algoSQRT(float x, float gainCopy, float thresholdCopy);
+    float algoSquareSign(float x, float gainCopy, float thresholdCopy);
 private:
     //this function creates the parameter objects
     juce::AudioProcessorValueTreeState::ParameterLayout createparameters();

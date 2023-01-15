@@ -14,6 +14,8 @@ future updates to include:
 
 -pretty GUI
 
+-generally making the thing better (this is my first plugin)
+
 /////
 include the JUCE::DSP module to build
 
